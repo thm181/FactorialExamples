@@ -1,0 +1,301 @@
+---
+title: "Chapter 9 Examples"
+author: "THM"
+format: 
+  html:
+    embed-resources: true
+    toc: true
+    code-tools: true
+
+theme: custom.scss
+
+csl: ecology.csl
+
+editor: visual
+bibliography: references.bib
+---
+
+```{r}
+#| label: SetUp
+#| message: FALSE
+#| echo: FALSE
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+  ) 
+
+library(emmeans)
+library(car)
+library(ggfortify)
+library(patchwork)
+library(broom)
+library(latex2exp)       
+library(kableExtra)
+library(tidyverse)
+
+options(
+  knitr.kable.NA = '',
+  knitr.kable.format = 'markdown'
+  )
+```
+
+## Box 9.4 \| Balanced design [@Quinn.Keough2002]
+
+@Keough.Quinn1998 examined the effects of season (winter/spring and summer/autumn) and adult density (8, 15, 30 and 45 animals per 225 $cm^2$ enclosure) on the production of egg masses by intertidal pulmonate limpets (Gastropoda: *Siphonaria diemenensis*). There were three replicate enclosures per treatment combination and the response variable was the number of egg masses per limpet in each enclosure.
+
+```{r }
+#| label: fig-expDesignFig
+#| fig.cap: "Experimental organism, location, and diagram of experimental design for Box 9.4."
+
+knitr::include_graphics("MultifactorANOVA.011.jpeg")
+
+```
+
+```{r }
+#| label: quinnImport
+
+box94 <- read_csv("quinn.csv", show_col_types = FALSE)
+
+colnames(box94) <- tolower(colnames(box94))
+
+box94$density <- factor(box94$density)
+```
+
+Let's do the ANOVA
+
+```{r }
+#| label: box94mod
+#| fig-show: hide
+#| results: hide
+
+box94mod <- lm(eggs ~ density*season, data = box94)
+
+autoplot(box94mod)
+
+summary(box94mod)
+```
+
+```{r }
+#| label: tbl-box94modTab
+#| tbl-cap: "ANOVA summary for production of egg masses by intertidal pulmonate limpets (Gastropoda: *Siphonaria diemenensis*) [@Keough.Quinn1998]."
+
+box94modTab <- Anova(box94mod)
+
+box94modTab$`Pr(>F)` <- format.pval(
+  round(box94modTab$`Pr(>F)`, 3),
+  eps = 0.001,
+  na.form = ""
+)
+
+kbl(
+  box94modTab,
+  digits = c(2, 0, 2, 4),
+  col.names = c(
+    "SS", "df", "F", "P"
+    ),
+  align = "lrrrr"
+  ) |>
+  kable_classic(
+    full = FALSE,
+    position = "left"
+    ) |>
+  column_spec(
+    column = 2:5,
+    width = "2cm"
+  )
+
+```
+
+```{r }
+#| label: fig-box94fig
+#| fig.width: 4
+#| fig.height: 6
+#| fig.cap: "Number of egg masses ((A - means $\\pm$ SE; B - medians and IQR) for *Siphonaria diemenensis* at two different seasons (winter/spring and summer/autumn) and four different adult densities."
+
+box94a <- ggplot(box94) + 
+  stat_summary(
+    aes(
+      x = density, 
+      y = eggs, 
+      group = season, 
+      color = season
+      )
+    ) +
+  ylab("") +
+  xlab("") +
+  annotate("text", x = 4, y = 2.8, label = "A") +
+  theme_classic() +
+  theme(legend.position = c(0.16, 0.25), 
+        legend.box.background = element_rect(linetype = 1))
+
+box94b <- ggplot(
+  box94,
+  aes(
+    x = density,
+    y = eggs,
+    color = season
+    )
+  ) +
+  ylab("Number of Egg Masses per Enclosure") +
+  geom_boxplot() +
+  geom_point(
+    position = position_jitterdodge(
+      jitter.width = 0.3,
+      jitter.height = 0
+    ),
+    size = 3,
+    shape = 19
+  ) +
+  annotate("text", x = 4, y = 2.8, label = "B") +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.title.y = element_text(hjust = -8,
+                                    vjust =  3)
+        )
+
+box94a + box94b + 
+  plot_layout(ncol = 1)
+```
+
+# Unbalanced Design: @Hall.etal2000 example used in Table 9.15
+
+```{r tab915expDesign}
+
+knitr::include_graphics("MultifactorANOVA.019.jpeg")
+
+knitr::include_graphics("MultifactorANOVA.020.jpeg")
+
+```
+
+#### Remember:
+
+```{r}
+
+knitr::include_graphics("MultifactorANOVA.022.jpeg")
+
+```
+
+------------------------------------------------------------------------
+
+The default `anova()` function [@base] provided by `R` produces Type I, or sequential SS (@tbl-Type1SS). The Anova() function from the car package [@car] may produce Type II SS (@tbl-Type2SS) or Type III SS (@tbl-Type3SS).
+
+```{r }
+#| label: tbl-Type1SS
+#| tbl-cap: "Type I SS using anova() [@base]"
+
+tab915csv <- read.csv("hall.csv")
+names(tab915csv) <- tolower(names(tab915csv))
+tab915csv$treat <- factor(tab915csv$treat)
+tab915csv$time <- factor(tab915csv$time)
+
+mod915 <- lm(richness ~ treat*time, tab915csv)
+
+mod915Itab <- tidy(anova(mod915))
+
+mod915Itab$p.value <- format.pval(
+  round(mod915Itab$p.value, 3),
+  eps = 0.001,
+  na.form = ""
+)
+
+kbl(
+  mod915Itab,
+  digits = c(0, 0, 2, 2, 2, 3),
+  col.names = c("Source", "df", "SS", "MS", "F", "P"),
+  align = "lrrrrr"
+  ) |>
+  kable_classic(
+    full = FALSE,
+    position = "left"
+    ) |>
+  column_spec(
+    column = 2:6,
+    width = "1.5cm"
+  )
+```
+
+```{r }
+#| label: tbl-Type2SS
+#| tbl-cap: "Type II SS using Anova() from the car package [@car]"
+
+mod9152tab <- tidy(Anova(mod915))
+
+mod9152tab$p.value <- format.pval(
+  round(mod9152tab$p.value, 3),
+  eps = 0.001,
+  na.form = ""
+)
+
+kbl(
+  mod9152tab,
+  digits = c(0, 2, 0, 2, 3),
+  col.names = c("Source", "SS", "df", "F", "P"),
+  align = "lrrrr"
+  ) |>
+  kable_classic(
+    full = FALSE,
+    position = "left"
+    ) |>
+  column_spec(
+    column = 2:5,
+    width = "1.5cm"
+  )
+```
+
+```{r }
+#| label: tbl-Type3SS
+#| tbl-cap: "Type III SS using Anova() from the car package [@car]."
+
+mod9153 <- lm(richness ~ treat*time, tab915csv, 
+              contrasts = list(
+                treat = "contr.sum",              # Type III SS MUST use
+                time = "contr.sum"                # the contr.sum contrasts
+                )
+              )
+
+mod9153tab <- tidy(Anova(mod9153, type = 3))
+
+mod9153tab$p.value <- format.pval(
+  round(mod9153tab$p.value, 3),
+  eps = 0.001,
+  na.form = ""
+)
+
+kbl(
+  mod9153tab,
+    digits = c(0, 2, 0, 2, 4),
+    col.names = c("Source", "SS", "df", "F", "P"),
+    align = "lrrrr"
+    ) |>
+  kable_classic(
+    full = FALSE,
+    position = "left"
+    ) |>
+  column_spec(
+    column = 2:5,
+    width = "1.5cm"
+  )
+```
+
+Note that the interaction of treatment and time is significant (@tbl-Type3SS). What does that mean? Let's look at an interaction plot to think about it (@fig-HallGraph). For a two-way factorial design, we can think of a significant interaction meaning that one factor alters the effect of the other factor. Here, notice that the distance between the two treatment levels changes depending on time.
+
+```{r }
+#| label: fig-HallGraph
+#| fig-cap: "An *interaction plot* of species richness through time for the control and nutrient addition treatments [@Hall.etal2000]."
+
+ggplot(tab915csv, aes(time,richness)) +
+  stat_summary(aes(group = treat, linetype = treat), geom = 'line') +
+  stat_summary(aes(group = treat)) +
+  scale_y_continuous(name = 'Species Richness',
+                     expand = c(0,0),
+                     limits = c(0,40)) +
+  scale_x_discrete(name = 'Time (months)') +
+theme_classic(base_size = 20) +
+  theme(legend.position = c(.75,.15), 
+        legend.direction = 'horizontal',
+        legend.title = element_blank())
+```
+
+# References
